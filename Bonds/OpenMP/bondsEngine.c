@@ -14,7 +14,8 @@
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 
-#define NUM_BONDS_RUN 1000000
+
+//#define NUM_BONDS_RUN 1000000
 
 
 int monthLengthCpu(int month, bool leapYear) 
@@ -213,7 +214,7 @@ bondsDateStruct intializeDateCpu(int d, int m, int y)
 
 
 
-void runRepoEngine() 
+void runRepoEngine(unsigned int numBonds, unsigned int iterations) 
 {
 	//can run multiple times with different number of bonds by uncommenting these lines
 	//int nBondsArray[] = {100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000};
@@ -222,11 +223,10 @@ void runRepoEngine()
 	//for (numTime=0; numTime < 14; numTime++)
 	{
 
-		int numBonds = NUM_BONDS_RUN;//nBondsArray[numTime];	
+		//int numBonds = 1000000; //NUM_BONDS_RUN;//nBondsArray[numTime];	
 		printf("\nNumber of Bonds: %d\n\n", numBonds);
 
-		
-
+	
 		inArgsStruct inArgsHost;
 		
 		inArgsHost.discountCurve = (bondsYieldTermStruct*)malloc(numBonds*sizeof(bondsYieldTermStruct));
@@ -377,7 +377,7 @@ void runRepoEngine()
     
 		gettimeofday(&start, NULL);
 
-		getBondsResultsCpuOpenMP(inArgsHost, resultsHost, numBonds);
+		getBondsResultsCpuOpenMP(inArgsHost, resultsHost, numBonds, iterations);
 
 		gettimeofday(&end, NULL);
 
@@ -404,7 +404,7 @@ void runRepoEngine()
 
 		
 
-
+#ifdef ORIGINAL
 		gettimeofday(&start, NULL);
 
 		getBondsResultsCpu(inArgsHost, resultsHost, numBonds);
@@ -433,6 +433,7 @@ void runRepoEngine()
 		printf("Bond Forward Val: %f\n\n", resultsHost.bondForwardVal[numBonds/2]);
 
 		printf("Speedup using OpenMP: %f\n", mtimeCpu / mtimeOpenMP);
+#endif
 
 		free(resultsHost.dirtyPrice);
 		free(resultsHost.accruedAmountCurrDate);;
@@ -462,6 +463,21 @@ void runRepoEngine()
 int
 main( int argc, char** argv) 
 {
-	runRepoEngine();
+	unsigned int bonds;
+    unsigned int iterations;
+
+	if (argc != 3) {
+        fprintf(stderr, "Usage: %s <bonds> <iterations>\n", argv[0]);
+        return 1;
+    }
+
+	bonds = atoi(argv[1]);
+    iterations = atoi(argv[2]);
+
+// Output the values for confirmation
+    printf("Bonds: %d\n", bonds);
+    printf("Iterations: %d\n", iterations);
+
+	runRepoEngine(bonds, iterations);
    	return 0;
 }

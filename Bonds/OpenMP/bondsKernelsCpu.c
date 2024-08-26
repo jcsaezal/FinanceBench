@@ -301,61 +301,65 @@ int getNumCashFlowsCpu(inArgsStruct inArgs, int bondNum)
 	return numCashFlows+1;
 }
 
-void getBondsResultsCpuOpenMP(inArgsStruct inArgs, resultsStruct results, int totNumRuns)
+void getBondsResultsCpuOpenMP(inArgsStruct inArgs, resultsStruct results, unsigned int totNumRuns, unsigned int iterations)
 {
-	#pragma omp parallel for num_threads(8) schedule(static) default(none) shared(inArgs,results,totNumRuns)
-	for (int bondNum=0; bondNum < totNumRuns; bondNum++)
+	#pragma omp parallel default(none) shared(inArgs,results,totNumRuns,iterations)
+	for (int iteration = 0; iteration < iterations; iteration++)
 	{
-		int numLegs  = getNumCashFlowsCpu(inArgs, bondNum);
-		cashFlowsStruct cashFlows;  
-		cashFlows.legs = (couponStruct*)malloc(numLegs*sizeof(couponStruct));
-
-		cashFlows.intRate.dayCounter = USE_EXACT_DAY;
-		cashFlows.intRate.rate = inArgs.bond[bondNum].rate;
-		cashFlows.intRate.freq = ANNUAL_FREQ;
-		cashFlows.intRate.comp = SIMPLE_INTEREST;
-		cashFlows.dayCounter = USE_EXACT_DAY;
-		cashFlows.nominal = 100.0;
-
-		//bondsDateStruct currPaymentDate;
-		bondsDateStruct currStartDate = advanceDateCpu(inArgs.bond[bondNum].maturityDate, (numLegs - 1)*-6);;
-		bondsDateStruct currEndDate = advanceDateCpu(currStartDate, 6); 
-
-		for (int cashFlowNum = 0; cashFlowNum < numLegs-1; cashFlowNum++)
+		#pragma omp for
+		for (int bondNum=0; bondNum < totNumRuns; bondNum++)
 		{
-			cashFlows.legs[cashFlowNum].paymentDate = currEndDate;
-			
-			
-			cashFlows.legs[cashFlowNum].accrualStartDate = currStartDate;
-			cashFlows.legs[cashFlowNum].accrualEndDate = currEndDate;
-			
-			cashFlows.legs[cashFlowNum].amount = COMPUTE_AMOUNT;
+			int numLegs  = getNumCashFlowsCpu(inArgs, bondNum);
+			cashFlowsStruct cashFlows;  
+			cashFlows.legs = (couponStruct*)malloc(numLegs*sizeof(couponStruct));
 
-			currStartDate = currEndDate;
-			currEndDate = advanceDateCpu(currEndDate, 6); 
+			cashFlows.intRate.dayCounter = USE_EXACT_DAY;
+			cashFlows.intRate.rate = inArgs.bond[bondNum].rate;
+			cashFlows.intRate.freq = ANNUAL_FREQ;
+			cashFlows.intRate.comp = SIMPLE_INTEREST;
+			cashFlows.dayCounter = USE_EXACT_DAY;
+			cashFlows.nominal = 100.0;
+
+			//bondsDateStruct currPaymentDate;
+			bondsDateStruct currStartDate = advanceDateCpu(inArgs.bond[bondNum].maturityDate, 	(numLegs - 1)*-6);;
+			bondsDateStruct currEndDate = advanceDateCpu(currStartDate, 6); 
+
+			for (int cashFlowNum = 0; cashFlowNum < numLegs-1; cashFlowNum++)
+			{
+				cashFlows.legs[cashFlowNum].paymentDate = currEndDate;
+
+
+				cashFlows.legs[cashFlowNum].accrualStartDate = currStartDate;
+				cashFlows.legs[cashFlowNum].accrualEndDate = currEndDate;
+
+				cashFlows.legs[cashFlowNum].amount = COMPUTE_AMOUNT;
+
+				currStartDate = currEndDate;
+				currEndDate = advanceDateCpu(currEndDate, 6); 
+			}
+
+			cashFlows.legs[numLegs-1].paymentDate = inArgs.bond[bondNum].maturityDate;
+			cashFlows.legs[numLegs-1].accrualStartDate = inArgs.currDate[bondNum];
+			cashFlows.legs[numLegs-1].accrualEndDate = inArgs.currDate[bondNum];
+			cashFlows.legs[numLegs-1].amount = 100.0;
+
+
+			results.bondForwardVal[bondNum] = getBondYieldCpu(inArgs.bondCleanPrice[bondNum],
+        	             USE_EXACT_DAY,
+        	             COMPOUNDED_INTEREST,
+        	             2.0,
+        	             inArgs.currDate[bondNum],
+        	             ACCURACY,
+        	             100,
+			     inArgs, bondNum, cashFlows, numLegs);
+			inArgs.discountCurve[bondNum].forward = results.bondForwardVal[bondNum];
+			results.dirtyPrice[bondNum] = getDirtyPriceCpu(inArgs, bondNum, cashFlows, numLegs);
+			results.accruedAmountCurrDate[bondNum] = getAccruedAmountCpu(inArgs, inArgs.currDate	[bondNum], bondNum, cashFlows, numLegs);
+			results.cleanPrice[bondNum] = results.dirtyPrice[bondNum] - results.	accruedAmountCurrDate[bondNum];
+
+
+			free(cashFlows.legs);
 		}
-
-		cashFlows.legs[numLegs-1].paymentDate = inArgs.bond[bondNum].maturityDate;
-		cashFlows.legs[numLegs-1].accrualStartDate = inArgs.currDate[bondNum];
-		cashFlows.legs[numLegs-1].accrualEndDate = inArgs.currDate[bondNum];
-		cashFlows.legs[numLegs-1].amount = 100.0;
-
-
-		results.bondForwardVal[bondNum] = getBondYieldCpu(inArgs.bondCleanPrice[bondNum],
-                     USE_EXACT_DAY,
-                     COMPOUNDED_INTEREST,
-                     2.0,
-                     inArgs.currDate[bondNum],
-                     ACCURACY,
-                     100,
-		     inArgs, bondNum, cashFlows, numLegs);
-		inArgs.discountCurve[bondNum].forward = results.bondForwardVal[bondNum];
-		results.dirtyPrice[bondNum] = getDirtyPriceCpu(inArgs, bondNum, cashFlows, numLegs);
-		results.accruedAmountCurrDate[bondNum] = getAccruedAmountCpu(inArgs, inArgs.currDate[bondNum], bondNum, cashFlows, numLegs);
-		results.cleanPrice[bondNum] = results.dirtyPrice[bondNum] - results.accruedAmountCurrDate[bondNum];
-
-		
-		free(cashFlows.legs);
 	}
 }
 

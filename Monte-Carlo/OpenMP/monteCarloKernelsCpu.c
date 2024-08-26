@@ -157,24 +157,31 @@ void initializePathCpu(float* path)
 	}
 }
 
-void monteCarloGpuKernelCpuOpenMP(float* samplePrices, float* sampleWeights, float* times, float dt, monteCarloOptionStruct* optionStructs, int numSamples)
+void monteCarloGpuKernelCpuOpenMP(float* samplePrices, float* sampleWeights, float* times, float dt, monteCarloOptionStruct* optionStructs, unsigned int numSamples, unsigned int iterations)
 {
 	dataType path[SEQUENCE_LENGTH];
   	dataType price;
-	#pragma omp parallel for num_threads(8) schedule(static) default(none) shared(samplePrices,sampleWeights,times,dt,optionStructs,numSamples) firstprivate(path) private(price)
-	for (size_t numSample = 0; numSample < numSamples; numSample++)
-	{
-		//declare and initialize the path
-		//float path[SEQUENCE_LENGTH];
-		initializePathCpu(path);
 
-		int optionStructNum = 0;
-
-		getPathCpu(path, numSample, dt, optionStructs[optionStructNum]);
-		/*float*/ price = getPriceCpu(path[SEQUENCE_LENGTH-1]);
+	#pragma omp parallel default(none) shared(samplePrices,sampleWeights,times,dt,optionStructs,numSamples,iterations) firstprivate(path) private(price)
 	
-		samplePrices[numSample] = price;
-		sampleWeights[numSample] = DEFAULT_SEQ_WEIGHT;
+	for (int iteration = 0; iteration < iterations; iteration++)
+	{
+	
+		#pragma omp for
+		for (size_t numSample = 0; numSample < numSamples; numSample++)
+		{
+			//declare and initialize the path
+			//float path[SEQUENCE_LENGTH];
+			initializePathCpu(path);
+
+			int optionStructNum = 0;
+
+			getPathCpu(path, numSample, dt, optionStructs[optionStructNum]);
+			/*float*/ price = getPriceCpu(path[SEQUENCE_LENGTH-1]);
+	
+			samplePrices[numSample] = price;
+			sampleWeights[numSample] = DEFAULT_SEQ_WEIGHT;
+		}
 	}
 }
 

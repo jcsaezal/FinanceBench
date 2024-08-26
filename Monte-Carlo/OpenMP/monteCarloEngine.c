@@ -22,11 +22,11 @@
 
 
 //run monte carlo...
-void runMonteCarlo()
+void runMonteCarlo(unsigned int numSamples, unsigned int iterations)
 {
 	//int nSamplesArray[] = {100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000}
 
-	int numSamples = 400000;
+	//int numSamples = 400000;
 
 	//for (int numTime=0; numTime < 12; numTime++)
 	{
@@ -96,7 +96,7 @@ void runMonteCarlo()
 
 
 		gettimeofday(&start, NULL);
-		monteCarloGpuKernelCpuOpenMP(samplePricesCpu, sampleWeightsCpu, timesCpu, (1.0f / (dataType)SEQUENCE_LENGTH), optionStructs, numSamples);
+		monteCarloGpuKernelCpuOpenMP(samplePricesCpu, sampleWeightsCpu, timesCpu, (1.0f / (dataType)SEQUENCE_LENGTH), optionStructs, numSamples, iterations);
 		gettimeofday(&end, NULL);
 
 		seconds  = end.tv_sec  - start.tv_sec;
@@ -115,7 +115,8 @@ void runMonteCarlo()
 
 		dataType avgPrice = cumPrice / numSamples;
 		printf("Average Price (CPU computation): %f\n\n", avgPrice);
-	   
+
+#ifdef ORIGINAL
 		gettimeofday(&start, NULL);
 		monteCarloGpuKernelCpu(samplePricesCpu, sampleWeightsCpu, timesCpu, (1.0f / (dataType)SEQUENCE_LENGTH), optionStructs, numSamples);
 		gettimeofday(&end, NULL);
@@ -142,7 +143,7 @@ void runMonteCarlo()
 		printf("Average Price (CPU computation): %f\n\n", avgPrice);
 
 		printf("Speedup Using OpenMP: %f\n", mtimeCpu / mtimeOpenMP);
-
+#endif
 		//free memory space on the CPU
 		free(samplePricesCpu);
 		free(sampleWeightsCpu);
@@ -158,9 +159,26 @@ void runMonteCarlo()
 int
 main( int argc, char** argv) 
 {
-	runMonteCarlo();
+	unsigned int samples;
+    unsigned int iterations;
 
+	if (argc != 3) {
+        fprintf(stderr, "Usage: %s <samples> <iterations>\n", argv[0]);
+        return 1;
+    }
+
+	samples = atoi(argv[1]);
+    iterations = atoi(argv[2]);
+
+// Output the values for confirmation
+    printf("Samples: %d\n", samples);
+    printf("Iterations: %d\n", iterations);
+
+	runMonteCarlo(samples, iterations);
+
+#ifdef ORIGINAL
 	char c;
 	c = getchar();
 	printf("%c\n", c);
+#endif
 }

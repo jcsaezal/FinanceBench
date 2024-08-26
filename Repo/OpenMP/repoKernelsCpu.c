@@ -305,75 +305,79 @@ int getNumCashFlowsCpu(inArgsStruct inArgs, int repoNum)
 }
 
 
-void getRepoResultsGpuCpuOpenMP(inArgsStruct inArgs, resultsStruct results, int totNumRuns)
+void getRepoResultsGpuCpuOpenMP(inArgsStruct inArgs, resultsStruct results, unsigned int totNumRuns, unsigned int iterations)
 {
-	#pragma omp parallel for num_threads(8) schedule(static) default(none) shared(inArgs,results,totNumRuns)
-	for (int repoNum=0; repoNum < totNumRuns; repoNum++)
-	{
-		int numLegs = getNumCashFlowsCpu(inArgs, repoNum);
-		cashFlowsStruct cashFlows;  
-		cashFlows.legs = (couponStruct*)malloc(numLegs*sizeof(couponStruct));
-
-		cashFlows.intRate.dayCounter = USE_EXACT_DAY;
-		cashFlows.intRate.rate = inArgs.bond[repoNum].rate;
-		cashFlows.intRate.freq = ANNUAL_FREQ;
-		cashFlows.intRate.comp = SIMPLE_INTEREST;
-		cashFlows.dayCounter = USE_EXACT_DAY;
-		cashFlows.nominal = 100.0;
-
-		//repoDateStruct currPaymentDate;
-		repoDateStruct currStartDate = advanceDateCpu(inArgs.bond[repoNum].maturityDate, (numLegs - 1)*-6);
-		repoDateStruct currEndDate = advanceDateCpu(currStartDate, 6); 
-
-		for (int cashFlowNum = 0; cashFlowNum < numLegs-1; cashFlowNum++)
+	#pragma omp parallel default(none) shared(inArgs,results,totNumRuns,iterations)
+	for (int iteration = 0; iteration < iterations; iteration++)
+	{		
+		#pragma omp for
+		for (int repoNum=0; repoNum < totNumRuns; repoNum++)
 		{
-			cashFlows.legs[cashFlowNum].paymentDate = currEndDate;
-			
-			cashFlows.legs[cashFlowNum].accrualStartDate = currStartDate;
-			cashFlows.legs[cashFlowNum].accrualEndDate = currEndDate;
-			
-			cashFlows.legs[cashFlowNum].amount = COMPUTE_AMOUNT;
+			int numLegs = getNumCashFlowsCpu(inArgs, repoNum);
+			cashFlowsStruct cashFlows;  
+			cashFlows.legs = (couponStruct*)malloc(numLegs*sizeof(couponStruct));
 
-			currStartDate = currEndDate;
-			currEndDate = advanceDateCpu(currEndDate, 6); 
+			cashFlows.intRate.dayCounter = USE_EXACT_DAY;
+			cashFlows.intRate.rate = inArgs.bond[repoNum].rate;
+			cashFlows.intRate.freq = ANNUAL_FREQ;
+			cashFlows.intRate.comp = SIMPLE_INTEREST;
+			cashFlows.dayCounter = USE_EXACT_DAY;
+			cashFlows.nominal = 100.0;
+
+			//repoDateStruct currPaymentDate;
+			repoDateStruct currStartDate = advanceDateCpu(inArgs.bond[repoNum].maturityDate, (numLegs - 1)*-6);
+			repoDateStruct currEndDate = advanceDateCpu(currStartDate, 6); 
+
+			for (int cashFlowNum = 0; cashFlowNum < numLegs-1; cashFlowNum++)
+			{
+				cashFlows.legs[cashFlowNum].paymentDate = currEndDate;
+				
+				cashFlows.legs[cashFlowNum].accrualStartDate = currStartDate;
+				cashFlows.legs[cashFlowNum].accrualEndDate = currEndDate;
+				
+				cashFlows.legs[cashFlowNum].amount = COMPUTE_AMOUNT;
+
+				currStartDate = currEndDate;
+				currEndDate = advanceDateCpu(currEndDate, 6); 
+			}
+
+			cashFlows.legs[numLegs-1].paymentDate = inArgs.bond[repoNum].maturityDate;
+			cashFlows.legs[numLegs-1].accrualStartDate = inArgs.settlementDate[repoNum];
+			cashFlows.legs[numLegs-1].accrualEndDate = inArgs.settlementDate[repoNum];
+			cashFlows.legs[numLegs-1].amount = 100.0;
+
+
+			results.bondForwardVal[repoNum] = getBondYieldCpu(inArgs.bondCleanPrice[repoNum],
+						USE_EXACT_DAY,
+						COMPOUNDED_INTEREST,
+						2.0,
+						inArgs.settlementDate[repoNum],
+						ACCURACY,
+						100,
+				inArgs, repoNum, cashFlows, numLegs);
+			inArgs.discountCurve[repoNum].forward = results.bondForwardVal[repoNum];
+			results.dirtyPrice[repoNum] = getDirtyPriceCpu(inArgs, repoNum, cashFlows, numLegs);
+			results.accruedAmountSettlement[repoNum] = getAccruedAmountCpu(inArgs, inArgs.settlementDate[repoNum], repoNum, cashFlows, numLegs);
+
+			results.accruedAmountDeliveryDate[repoNum] = getAccruedAmountCpu(inArgs, inArgs.deliveryDate[repoNum], repoNum, cashFlows, numLegs);
+			results.cleanPrice[repoNum] = results.dirtyPrice[repoNum] - results.accruedAmountSettlement[repoNum];
+			results.forwardSpotIncome[repoNum] = fixedRateBondForwardSpotIncomeCpu(inArgs, repoNum, cashFlows, numLegs);
+			results.underlyingBondFwd[repoNum] = results.forwardSpotIncome[repoNum] / repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
+			dataType forwardVal = (results.dirtyPrice[repoNum] - results.forwardSpotIncome[repoNum]) / repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
+			
+			results.repoNpv[repoNum] = (forwardVal - inArgs.dummyStrike[repoNum]) * repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
+			results.repoCleanForwardPrice[repoNum] = forwardVal - getAccruedAmountCpu(inArgs, inArgs.repoDeliveryDate[repoNum], repoNum, cashFlows, numLegs);
+			results.repoDirtyForwardPrice[repoNum] = forwardVal;
+			results.repoImpliedYield[repoNum] = getImpliedYieldCpu(inArgs, inArgs.dummyStrike[repoNum], results.dirtyPrice[repoNum], results.forwardSpotIncome[repoNum], repoNum);
+			results.marketRepoRate[repoNum] = getMarketRepoRateCpu(inArgs.repoDeliveryDate[repoNum],
+									SIMPLE_INTEREST,
+									1.0,
+									inArgs.settlementDate[repoNum],
+									inArgs, repoNum);
+
+			
+			free(cashFlows.legs);
 		}
-
-		cashFlows.legs[numLegs-1].paymentDate = inArgs.bond[repoNum].maturityDate;
-		cashFlows.legs[numLegs-1].accrualStartDate = inArgs.settlementDate[repoNum];
-		cashFlows.legs[numLegs-1].accrualEndDate = inArgs.settlementDate[repoNum];
-		cashFlows.legs[numLegs-1].amount = 100.0;
-
-
-		results.bondForwardVal[repoNum] = getBondYieldCpu(inArgs.bondCleanPrice[repoNum],
-                     USE_EXACT_DAY,
-                     COMPOUNDED_INTEREST,
-                     2.0,
-                     inArgs.settlementDate[repoNum],
-                     ACCURACY,
-                     100,
-		     inArgs, repoNum, cashFlows, numLegs);
-		inArgs.discountCurve[repoNum].forward = results.bondForwardVal[repoNum];
-		results.dirtyPrice[repoNum] = getDirtyPriceCpu(inArgs, repoNum, cashFlows, numLegs);
-		results.accruedAmountSettlement[repoNum] = getAccruedAmountCpu(inArgs, inArgs.settlementDate[repoNum], repoNum, cashFlows, numLegs);
-
-		results.accruedAmountDeliveryDate[repoNum] = getAccruedAmountCpu(inArgs, inArgs.deliveryDate[repoNum], repoNum, cashFlows, numLegs);
-		results.cleanPrice[repoNum] = results.dirtyPrice[repoNum] - results.accruedAmountSettlement[repoNum];
-		results.forwardSpotIncome[repoNum] = fixedRateBondForwardSpotIncomeCpu(inArgs, repoNum, cashFlows, numLegs);
-		results.underlyingBondFwd[repoNum] = results.forwardSpotIncome[repoNum] / repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
-		dataType forwardVal = (results.dirtyPrice[repoNum] - results.forwardSpotIncome[repoNum]) / repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
-		
-		results.repoNpv[repoNum] = (forwardVal - inArgs.dummyStrike[repoNum]) * repoYieldTermStructureDiscountCpu(inArgs.repoCurve[repoNum], inArgs.repoDeliveryDate[repoNum]);
-		results.repoCleanForwardPrice[repoNum] = forwardVal - getAccruedAmountCpu(inArgs, inArgs.repoDeliveryDate[repoNum], repoNum, cashFlows, numLegs);
-		results.repoDirtyForwardPrice[repoNum] = forwardVal;
-		results.repoImpliedYield[repoNum] = getImpliedYieldCpu(inArgs, inArgs.dummyStrike[repoNum], results.dirtyPrice[repoNum], results.forwardSpotIncome[repoNum], repoNum);
-		results.marketRepoRate[repoNum] = getMarketRepoRateCpu(inArgs.repoDeliveryDate[repoNum],
-                                   SIMPLE_INTEREST,
-                                   1.0,
-								   inArgs.settlementDate[repoNum],
-								   inArgs, repoNum);
-
-		
-		free(cashFlows.legs);
 	}
 }
 

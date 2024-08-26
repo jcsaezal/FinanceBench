@@ -51,7 +51,7 @@ int getNumCashFlowsCpu(inArgsStruct inArgs, int repoNum);
 
 void setCashFlowsCpu(inArgsStruct inArgs, int repoNum);
 
-void getRepoResultsGpuCpuOpenMP(inArgsStruct inArgs, resultsStruct results, int totNumRuns);
+void getRepoResultsGpuCpuOpenMP(inArgsStruct inArgs, resultsStruct results, unsigned int totNumRuns, unsigned int iterations);
 
 void getRepoResultsGpuCpu(inArgsStruct inArgs, resultsStruct results, int totNumRuns);
 

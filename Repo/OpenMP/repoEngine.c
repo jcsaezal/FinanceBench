@@ -17,7 +17,7 @@
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 
-#define NUM_REPOS_RUN 1000000
+//#define NUM_REPOS_RUN 1000000
 
 
 int monthLengthCpu(int month, bool leapYear) 
@@ -216,7 +216,7 @@ repoDateStruct intializeDateCpu(int d, int m, int y)
 
 
 
-void runRepoEngine() 
+void runRepoEngine(unsigned int numRepos, unsigned int iterations) 
 {
 	//can run multiple times with different number of bonds by uncommenting these lines
 	//int nReposArray[] = {100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000};
@@ -224,7 +224,7 @@ void runRepoEngine()
 	//for (int numTime=0; numTime < 14; numTime++)
 	{
 
-		int numRepos = NUM_REPOS_RUN;//nReposArray[numTime];	
+		//int numRepos = NUM_REPOS_RUN;//nReposArray[numTime];	
 		printf("\nNUM_REPOS: %d\n\n", numRepos);
 
 		
@@ -364,7 +364,7 @@ void runRepoEngine()
 		struct timeval end;
 
 		gettimeofday(&start, NULL);
-		getRepoResultsGpuCpuOpenMP(inArgsHost, resultsHost, numRepos);
+		getRepoResultsGpuCpuOpenMP(inArgsHost, resultsHost, numRepos, iterations);
 		gettimeofday(&end, NULL);
 
 
@@ -398,7 +398,7 @@ void runRepoEngine()
 		printf("Bond Forward Val: %f\n\n", resultsHost.bondForwardVal[numRepos/2]);
 		
 
-
+#ifdef ORIGINAL
 		gettimeofday(&start, NULL);
 		getRepoResultsGpuCpu(inArgsHost, resultsHost, numRepos);
 		gettimeofday(&end, NULL);
@@ -433,7 +433,7 @@ void runRepoEngine()
 		printf("Bond Forward Val: %f\n\n", resultsHost.bondForwardVal[numRepos/2]);
 
 		printf("Speedup using OpenMP: %f\n", mtimeCpu / mtimeOpenMP);
-
+#endif
 
 		free(resultsHost.dirtyPrice);
 		free(resultsHost.accruedAmountSettlement);;
@@ -480,9 +480,22 @@ void runRepoEngine()
 int
 main( int argc, char** argv) 
 {
-	runRepoEngine();
-	char c;
-	c = getchar();
-	printf("%c\n", c);
+	unsigned int repos;
+    unsigned int iterations;
+
+	if (argc != 3) {
+        fprintf(stderr, "Usage: %s <repos> <iterations>\n", argv[0]);
+        return 1;
+    }
+
+	repos = atoi(argv[1]);
+    iterations = atoi(argv[2]);
+
+// Output the values for confirmation
+    printf("Repos: %d\n", repos);
+    printf("Iterations: %d\n", iterations);
+
+	runRepoEngine(repos, iterations);
+   	return 0;
 }
 

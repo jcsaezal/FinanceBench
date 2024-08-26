@@ -15,11 +15,18 @@
 #define NUM_DIFF_SETTINGS 37
 
 //function to run the black scholes analytic engine on the gpu
-void runBlackScholesAnalyticEngine()
+void runBlackScholesAnalyticEngine(unsigned int numberOfSamples, unsigned int iterations)
 {
 	//int nSamplesArray[] = {100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000};
 
+/**
+#ifdef ORIGINAL
 	int numberOfSamples = 5000000;
+#else
+	int numberOfSamples = 500000000;
+	int iterations = 4;
+#endif
+**/
 	//for (int numTime=14; numTime < 15; numTime++)
 	{
 		int numVals = numberOfSamples;//nSamplesArray[numTime];
@@ -237,12 +244,25 @@ void runBlackScholesAnalyticEngine()
 		gettimeofday(&start, NULL);
 
 
-		//run on CPU
+#ifdef ORIGINAL
 		#pragma omp parallel for num_threads(8) schedule(static) default(none) shared(values,outputVals,numVals)
 		for (size_t numOption=0; numOption < numVals; numOption++)
 		{
 			getOutValOptionCpu(values, outputVals, numOption, numVals);	
 		}
+#else 
+		//run on CPU ( num_threads(8) schedule(static))
+		#pragma omp parallel default(none) shared(values, outputVals, numVals,iterations)
+		
+    	for (int iteration = 0; iteration < iterations; iteration++)
+    	{
+        	#pragma omp for
+        	for (size_t numOption = 0; numOption < numVals; numOption++)
+        	{
+            	getOutValOptionCpu(values, outputVals, numOption, numVals);
+        	}
+    	}
+#endif
 
 		gettimeofday(&end, NULL);
 		seconds  = end.tv_sec  - start.tv_sec;
@@ -253,17 +273,22 @@ void runBlackScholesAnalyticEngine()
 		printf("Run on CPU\n");
 		printf("Processing time on CPU using OpenMP: %f (ms)\n", mtimeOpenMP);
 
+#ifdef ORIGINAL
 		float totResult = 0.0f;
 		for (int i=0; i<numVals; i++)
 		{
 			totResult += outputVals[i];
 		}
+#endif
+
 
 		gettimeofday(&start, NULL);
-
+#ifdef ORIGINAL
 		printf("Summation of output prices on CPU using OpenMP: %f\n", totResult);
+#endif
 		printf("Output price at index %d on CPU using OpenMP: %f\n\n", numVals/2, outputVals[numVals/2]);
 
+#ifdef ORIGINAL
 		//run on CPU
 		for (size_t numOption=0; numOption < numVals; numOption++)
 		{
@@ -288,7 +313,7 @@ void runBlackScholesAnalyticEngine()
 		printf("Output price at index %d on CPU:: %f\n\n", numVals/2, outputVals[numVals/2]);
 
 		printf("Speedup using OpenMP: %f\n", mtimeCpu / mtimeOpenMP);
-
+#endif
 		delete [] values;
 		free(outputVals);
 	}
@@ -300,8 +325,25 @@ void runBlackScholesAnalyticEngine()
 int
 main( int argc, char** argv) 
 {
-	runBlackScholesAnalyticEngine();
+	unsigned int samples;
+    unsigned int iterations;
+
+	if (argc != 3) {
+        fprintf(stderr, "Usage: %s <samples> <iterations>\n", argv[0]);
+        return 1;
+    }
+
+	samples = atoi(argv[1]);
+    iterations = atoi(argv[2]);
+
+// Output the values for confirmation
+    printf("Samples: %d\n", samples);
+    printf("Iterations: %d\n", iterations);
+
+	runBlackScholesAnalyticEngine(samples, iterations);
+#ifdef ORIGINAL
 	char c;
 	c = getchar();
 	printf("%c\n", c);
+#endif
 }

@@ -77,7 +77,7 @@ dataType getPriceCpu(dataType val);
 //initialize the path
 void initializePathCpu(dataType* path);
 
-void monteCarloGpuKernelCpuOpenMP(float* samplePrices, float* sampleWeights, float* times, float dt, monteCarloOptionStruct* optionStructs, int numSamples);
+void monteCarloGpuKernelCpuOpenMP(float* samplePrices, float* sampleWeights, float* times, float dt, monteCarloOptionStruct* optionStructs, unsigned int numSamples, unsigned int iterations);
 
 void monteCarloGpuKernelCpu(dataType* samplePrices, dataType* sampleWeights, dataType* times, dataType dt, monteCarloOptionStruct* optionStructs, int numSamples);
 

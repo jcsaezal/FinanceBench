@@ -51,7 +51,7 @@ int getNumCashFlowsCpu(inArgsStruct inArgs, int bondNum);
 
 void setCashFlowsCpu(inArgsStruct inArgs, int bondNum);
 
-void getBondsResultsCpuOpenMP(inArgsStruct inArgs, resultsStruct results, int totNumRuns);
+void getBondsResultsCpuOpenMP(inArgsStruct inArgs, resultsStruct results, unsigned int totNumRuns, unsigned int iterations);
 
 void getBondsResultsCpu(inArgsStruct inArgs, resultsStruct* results, int totNumRuns);
 
